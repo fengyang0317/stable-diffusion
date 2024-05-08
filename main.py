@@ -4,6 +4,9 @@ import time
 import torch
 import torchvision
 import pytorch_lightning as pl
+import albumentations
+import cv2
+import datasets
 
 from packaging import version
 from omegaconf import OmegaConf
@@ -160,19 +163,46 @@ def worker_init_fn(_):
 
 
 class DataModuleFromConfig(pl.LightningDataModule):
-    def __init__(self, batch_size, train=None, validation=None, test=None, predict=None,
+    def __init__(self, data_dir, batch_size, train=None, validation=None, test=None, predict=None,
                  wrap=False, num_workers=None, shuffle_test_loader=False, use_worker_init_fn=False,
                  shuffle_val_dataloader=False):
         super().__init__()
         self.batch_size = batch_size
-        self.dataset_configs = dict()
         self.num_workers = num_workers if num_workers is not None else batch_size * 2
         self.use_worker_init_fn = use_worker_init_fn
+
+        def transform_fn(examples, image_rescaler):
+            images = []
+            for im in examples['image']:
+                if im.mode != 'RGB':
+                    im = im.convert('RGB')
+                im = np.array(im).astype(np.uint8)
+                min_side_len = min(im.shape[:2])
+                crop_side_len = min_side_len * np.random.uniform(0.5, 1.0)
+                crop_side_len = int(crop_side_len)
+                cropper = albumentations.RandomCrop(height=crop_side_len, width=crop_side_len)
+                im = cropper(image=im)['image']
+                im = image_rescaler(image=im)['image']
+                im = (im / 127.5 - 1.0).astype(np.float32)
+                images.append(im)
+            examples['image'] = images
+            return examples
+
+        self.ds = datasets.load_from_disk(data_dir)
+        image_rescaler = albumentations.SmallestMaxSize(max_size=256, interpolation=cv2.INTER_AREA)
+        train_dataset = self.ds['train']
+        train_dataset = train_dataset.with_transform(partial(transform_fn, image_rescaler=image_rescaler),
+                                                     columns=['image'])
+        val_dataset = self.ds['val']
+        val_dataset = val_dataset.with_transform(partial(transform_fn, image_rescaler=image_rescaler),
+                                                 columns=['image'])
+        self.datasets = {}
+
         if train is not None:
-            self.dataset_configs["train"] = train
+            self.datasets["train"] = train_dataset
             self.train_dataloader = self._train_dataloader
         if validation is not None:
-            self.dataset_configs["validation"] = validation
+            self.datasets["validation"] = val_dataset
             self.val_dataloader = partial(self._val_dataloader, shuffle=shuffle_val_dataloader)
         if test is not None:
             self.dataset_configs["test"] = test
@@ -183,16 +213,10 @@ class DataModuleFromConfig(pl.LightningDataModule):
         self.wrap = wrap
 
     def prepare_data(self):
-        for data_cfg in self.dataset_configs.values():
-            instantiate_from_config(data_cfg)
+        pass
 
     def setup(self, stage=None):
-        self.datasets = dict(
-            (k, instantiate_from_config(self.dataset_configs[k]))
-            for k in self.dataset_configs)
-        if self.wrap:
-            for k in self.datasets:
-                self.datasets[k] = WrappedDataset(self.datasets[k])
+        pass
 
     def _train_dataloader(self):
         is_iterable_dataset = isinstance(self.datasets['train'], Txt2ImgIterableBaseDataset)
