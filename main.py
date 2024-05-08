@@ -416,29 +416,6 @@ class ImageLogger(Callback):
                 self.log_gradients(trainer, pl_module, batch_idx=batch_idx)
 
 
-class CUDACallback(Callback):
-    # see https://github.com/SeanNaren/minGPT/blob/master/mingpt/callback.py
-    def on_train_epoch_start(self, trainer, pl_module):
-        # Reset the memory use counter
-        torch.cuda.reset_peak_memory_stats(trainer.root_gpu)
-        torch.cuda.synchronize(trainer.root_gpu)
-        self.start_time = time.time()
-
-    def on_train_epoch_end(self, trainer, pl_module, outputs):
-        torch.cuda.synchronize(trainer.root_gpu)
-        max_memory = torch.cuda.max_memory_allocated(trainer.root_gpu) / 2 ** 20
-        epoch_time = time.time() - self.start_time
-
-        try:
-            max_memory = trainer.training_type_plugin.reduce(max_memory)
-            epoch_time = trainer.training_type_plugin.reduce(epoch_time)
-
-            rank_zero_info(f"Average Epoch time: {epoch_time:.2f} seconds")
-            rank_zero_info(f"Average Peak memory {max_memory:.2f}MiB")
-        except AttributeError:
-            pass
-
-
 if __name__ == "__main__":
     # custom parser to specify config files, train, test and debug mode,
     # postfix, resume.
@@ -545,12 +522,10 @@ if __name__ == "__main__":
         trainer_config["accelerator"] = "ddp"
         for k in nondefault_trainer_args(opt):
             trainer_config[k] = getattr(opt, k)
-        if not "gpus" in trainer_config:
+        if trainer_config["accelerator"] != 'tpu':
             del trainer_config["accelerator"]
             cpu = True
         else:
-            gpuinfo = trainer_config["gpus"]
-            print(f"Running on GPUs {gpuinfo}")
             cpu = False
         trainer_opt = argparse.Namespace(**trainer_config)
         lightning_config.trainer = trainer_config
@@ -642,9 +617,6 @@ if __name__ == "__main__":
                     # "log_momentum": True
                 }
             },
-            "cuda_callback": {
-                "target": "main.CUDACallback"
-            },
         }
         if version.parse(pl.__version__) >= version.parse('1.4.0'):
             default_callbacks_cfg.update({'checkpoint_callback': modelckpt_cfg})
@@ -697,7 +669,7 @@ if __name__ == "__main__":
         # configure learning rate
         bs, base_lr = config.data.params.batch_size, config.model.base_learning_rate
         if not cpu:
-            ngpu = len(lightning_config.trainer.gpus.strip(",").split(','))
+            ngpu = lightning_config.trainer.devices
         else:
             ngpu = 1
         if 'accumulate_grad_batches' in lightning_config.trainer:
