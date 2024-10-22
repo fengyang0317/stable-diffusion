@@ -44,7 +44,7 @@ class FullOpenImagesBase(Dataset):
             for i in trange(len(FULL_TRAIN_FILES), desc="Constructing Train Data"):
                 with open(os.path.join(self.data_root, self.data_files[self.split][i]), "r") as f:
                     for line in f:
-                        self.image_paths.append(os.path.join(f"train{i}", line.rstrip()))
+                        self.image_paths.append(os.path.join(f"train", line.rstrip()))
 
             # quicky and dirty clean-up:
             with open(corrupt_files, "r") as cf:
