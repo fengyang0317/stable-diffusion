@@ -409,7 +409,7 @@ class AutoencoderKL(pl.LightningModule):
                 assert xrec.shape[1] > 3
                 x = self.to_rgb(x)
                 xrec = self.to_rgb(xrec)
-            log["samples"] = self.decode(torch.randn_like(posterior.sample()))
+            log["samples"] = self.decode(posterior.sample())
             log["reconstructions"] = xrec
         log["inputs"] = x
         return log
