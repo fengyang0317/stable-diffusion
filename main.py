@@ -562,7 +562,7 @@ if __name__ == "__main__":
         else:
             logger_cfg = OmegaConf.create()
         logger_cfg = OmegaConf.merge(default_logger_cfg, logger_cfg)
-        trainer_kwargs["logger"] = instantiate_from_config(logger_cfg)
+        # trainer_kwargs["logger"] = instantiate_from_config(logger_cfg)
 
         # modelcheckpoint - use TrainResult/EvalResult(checkpoint_on=metric) to
         # specify which metric is used to determine best models
@@ -614,7 +614,7 @@ if __name__ == "__main__":
             "learning_rate_logger": {
                 "target": "main.LearningRateMonitor",
                 "params": {
-                    "logging_interval": "step",
+                    "logging_interval": "epoch",
                     # "log_momentum": True
                 }
             },
