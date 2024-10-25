@@ -86,7 +86,7 @@ def main():
     parser.add_argument("--num_workers", default=8, type=int, help="Number of workers.")
     parser.add_argument("--batch_size", default=64, type=int, help="Batch size.")
     parser.add_argument("--output_dir", default="/tmp/imagenet_1k", type=str, help="Output directory.")
-    parser.add_argument('--vae_path', default="models/ldm/stable-diffusion-v1/model.ckpt", type=str,
+    parser.add_argument('--vae_path', default="models/first_stage_models/kl-f16/model.ckpt", type=str,
                         help='images input size')
     parser.add_argument('--hf_token', default=None, type=str, help='Hugging Face token')
     args = parser.parse_args()
@@ -105,11 +105,8 @@ def main():
     dataset_train = dataset_train.decode('pil').to_tuple('jpg', 'json')
     dataset_train = dataset_train.map_tuple(transform_train, lambda x: x)
 
-    config = OmegaConf.load('configs/stable-diffusion/v1-inference.yaml')
-    model = load_model_from_config(config, args.vae_path)
-    vae = model.first_stage_model
-    del model
-    torch.cuda.empty_cache()
+    config = OmegaConf.load('models/first_stage_models/kl-f16/config.yaml')
+    vae = load_model_from_config(config, args.vae_path)
 
     train_loader = torch.utils.data.DataLoader(
         dataset_train,
