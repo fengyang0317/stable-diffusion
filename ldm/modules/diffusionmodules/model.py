@@ -514,7 +514,7 @@ class Decoder(nn.Module):
                                          temb_channels=self.temb_ch,
                                          dropout=dropout))
                 block_in = block_out
-                if curr_res in attn_resolutions:
+                if curr_res in []:
                     attn.append(make_attn(block_in, attn_type=attn_type))
             up = nn.Module()
             up.block = block
