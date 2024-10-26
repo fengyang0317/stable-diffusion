@@ -7,7 +7,7 @@ from taming.modules.losses.vqperceptual import *  # TODO: taming dependency yes/
 class LPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_start, logvar_init=0.0, kl_weight=1.0, pixelloss_weight=1.0,
                  disc_num_layers=3, disc_in_channels=3, disc_factor=1.0, disc_weight=1.0,
-                 perceptual_weight=1.0, use_actnorm=False, disc_conditional=False,
+                 perceptual_weight=1.0, use_actnorm=False, disc_conditional=False, resolution=256,
                  disc_loss="hinge"):
 
         super().__init__()
@@ -21,7 +21,8 @@ class LPIPSWithDiscriminator(nn.Module):
 
         self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
                                                  n_layers=disc_num_layers,
-                                                 use_actnorm=use_actnorm
+                                                 use_actnorm=use_actnorm,
+                                                 resolution=resolution,
                                                  ).apply(weights_init)
         self.discriminator_iter_start = disc_start
         self.disc_loss = hinge_d_loss if disc_loss == "hinge" else vanilla_d_loss
