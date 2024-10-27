@@ -88,6 +88,7 @@ def main():
     parser.add_argument("--output_dir", default="/tmp/imagenet_1k", type=str, help="Output directory.")
     parser.add_argument('--vae_path', default="models/first_stage_models/kl-f16/model.ckpt", type=str,
                         help='images input size')
+    parser.add_argument("--use_ema", default=False, action="store_true", help="Use ema.")
     parser.add_argument('--hf_token', default=None, type=str, help='Hugging Face token')
     args = parser.parse_args()
 
@@ -106,7 +107,11 @@ def main():
     dataset_train = dataset_train.map_tuple(transform_train, lambda x: x)
 
     config = OmegaConf.load('models/first_stage_models/kl-f16/config.yaml')
+    if args.use_ema:
+        config['model']['params']['use_ema'] = True
     vae = load_model_from_config(config, args.vae_path)
+    if args.use_ema:
+        vae.model_ema.copy_to(vae)
 
     train_loader = torch.utils.data.DataLoader(
         dataset_train,
