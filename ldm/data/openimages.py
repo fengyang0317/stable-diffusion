@@ -23,15 +23,14 @@ except ImportError as e:
     class OpenImagesBBoxBase:
         pass
 
-FULL_TRAIN_FILES = [f"trainfiles{i}.txt" for i in range(10)]
+FULL_TRAIN_FILES = "trainfiles.txt"
 VALIDATION_FILES = "validationfiles.txt"
 TEST_FILES = "testfiles.txt"
 
 
 class FullOpenImagesBase(Dataset):
     def __init__(self, size=None, crop_size=None, interpolation="bicubic",
-                 data_root="data/fullopenimages/", random_crop=True,
-                 corrupt_files="data/unidentifiable_openimage_files.txt"):
+                 data_root="data/imagenet-1k/", random_crop=True,):
         self.split = self.get_split()
         self.size = size
         self.crop_size = crop_size if crop_size is not None else size
@@ -40,23 +39,9 @@ class FullOpenImagesBase(Dataset):
         self.data_root = data_root
         print("Building Full OpenImages Dataset. Get a Coffee.")
         self.image_paths = list()
-        if self.split == "train":
-            for i in trange(len(FULL_TRAIN_FILES), desc="Constructing Train Data"):
-                with open(os.path.join(self.data_root, self.data_files[self.split][i]), "r") as f:
-                    for line in f:
-                        self.image_paths.append(os.path.join(f"train{i}", line.rstrip()))
-
-            # quicky and dirty clean-up:
-            with open(corrupt_files, "r") as cf:
-                corrupts = cf.read().splitlines()
-                for corrupt in tqdm(corrupts, desc="Remove Corrupts"):
-                    corrupt = "/".join(corrupt.split("/")[2:])
-                    self.image_paths.remove(corrupt)
-
-        else:
-            with open(os.path.join(self.data_root, self.data_files[self.split]), "r") as f:
-                for line in tqdm(f, desc="Constructing Validation Data"):
-                    self.image_paths.append(os.path.join(self.split, line.rstrip()))
+        with open(os.path.join(self.data_root, self.data_files[self.split]), "r") as f:
+            for line in tqdm(f, desc=f"Constructing {self.split} Data"):
+                self.image_paths.append(os.path.join(line.rstrip()))
 
         self._length = len(self.image_paths)
         self.labels = {
@@ -81,8 +66,6 @@ class FullOpenImagesBase(Dataset):
             self.cropper = albumentations.CenterCrop(height=self.crop_size, width=self.crop_size)
         else:
             self.cropper = albumentations.RandomCrop(height=self.crop_size, width=self.crop_size)
-
-        self.unident_files = "unidentifiable_openimage_files.txt"  # only debug
 
     def __len__(self):
         return self._length
