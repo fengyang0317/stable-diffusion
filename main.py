@@ -4,6 +4,8 @@ import time
 import torch
 import torchvision
 import pytorch_lightning as pl
+import albumentations
+import cv2
 
 from packaging import version
 from omegaconf import OmegaConf
@@ -194,6 +196,17 @@ class DataModuleFromConfig(pl.LightningDataModule):
             for k in self.datasets:
                 self.datasets[k] = WrappedDataset(self.datasets[k])
 
+    @staticmethod
+    def collate_fn(batch):
+        x = np.random.randint(5)
+        size = 16 * 2 ** x
+        image_rescaler = albumentations.SmallestMaxSize(max_size=size, interpolation=cv2.INTER_AREA)
+        for i in range(len(batch)):
+            image = image_rescaler(image=batch[i]['image'])['image']
+            batch[i]['image'] = (image/127.5 - 1.0).astype(np.float32)
+        batch = torch.utils.data.default_collate(batch)
+        return batch
+
     def _train_dataloader(self):
         is_iterable_dataset = isinstance(self.datasets['train'], Txt2ImgIterableBaseDataset)
         if is_iterable_dataset or self.use_worker_init_fn:
@@ -202,7 +215,7 @@ class DataModuleFromConfig(pl.LightningDataModule):
             init_fn = None
         return DataLoader(self.datasets["train"], batch_size=self.batch_size,
                           num_workers=self.num_workers, shuffle=False if is_iterable_dataset else True,
-                          worker_init_fn=init_fn)
+                          collate_fn=self.collate_fn, worker_init_fn=init_fn, drop_last=True)
 
     def _val_dataloader(self, shuffle=False):
         if isinstance(self.datasets['validation'], Txt2ImgIterableBaseDataset) or self.use_worker_init_fn:
@@ -211,6 +224,8 @@ class DataModuleFromConfig(pl.LightningDataModule):
             init_fn = None
         return DataLoader(self.datasets["validation"],
                           batch_size=self.batch_size,
+                          collate_fn=self.collate_fn,
+                          drop_last=True,
                           num_workers=self.num_workers,
                           worker_init_fn=init_fn,
                           shuffle=shuffle)

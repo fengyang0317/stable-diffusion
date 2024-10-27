@@ -356,6 +356,7 @@ class ImageNetSR(Dataset):
             self.cropper = albumentations.RandomCrop(height=crop_side_len, width=crop_side_len)
 
         image = self.cropper(image=image)["image"]
+        cropped = image
         image = self.image_rescaler(image=image)["image"]
 
         if self.pil_interpolation:
@@ -366,7 +367,7 @@ class ImageNetSR(Dataset):
         else:
             LR_image = self.degradation_process(image=image)["image"]
 
-        example["image"] = (image/127.5 - 1.0).astype(np.float32)
+        example["image"] = cropped
         example["LR_image"] = (LR_image/127.5 - 1.0).astype(np.float32)
 
         return example

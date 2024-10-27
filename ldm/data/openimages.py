@@ -81,8 +81,7 @@ class FullOpenImagesBase(Dataset):
             image = self.image_rescaler(image=image)["image"]
         if self.cropper is not None and self.crop_size is not None:
             image = self.cropper(image=image)["image"]
-        processed = {"image": image}
-        example["image"] = (processed["image"] / 127.5 - 1.0).astype(np.float32)
+        example["image"] = image
         return example
 
 
