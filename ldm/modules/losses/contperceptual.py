@@ -46,8 +46,9 @@ class LPIPSWithDiscriminator(nn.Module):
                 global_step, last_layer=None, cond=None, split="train",
                 weights=None):
         rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
+        rec_loss_alone = rec_loss
+        p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
         if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
             rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
@@ -85,9 +86,11 @@ class LPIPSWithDiscriminator(nn.Module):
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(), "{}/logvar".format(split): self.logvar.detach(),
                    "{}/kl_loss".format(split): kl_loss.detach().mean(), "{}/nll_loss".format(split): nll_loss.detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
+                   "{}/rec_loss_alone".format(split): rec_loss_alone.detach().mean(),
                    "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
+                   "{}/p_loss".format(split): p_loss.detach().mean(),
                    }
             return loss, log
 
