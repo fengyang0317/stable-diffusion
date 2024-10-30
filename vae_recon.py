@@ -112,6 +112,12 @@ def main():
     vae = load_model_from_config(config, args.vae_path)
     if args.use_ema:
         vae.model_ema.copy_to(vae)
+    state_dict = vae.state_dict()
+    keys = list(state_dict.keys())
+    for key in keys:
+        if key.startswith("loss") or key.startswith("model_ema"):
+            del state_dict[key]
+    torch.save({"model": state_dict}, "converted.ckpt")
 
     train_loader = torch.utils.data.DataLoader(
         dataset_train,
