@@ -6,12 +6,14 @@ import pathlib
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import tqdm
 import webdataset as wds
 from PIL import Image
-from ldm.util import instantiate_from_config
 from omegaconf import OmegaConf
 from torchvision.transforms import transforms
+
+from ldm.util import instantiate_from_config
 
 
 def center_crop_arr(pil_image, image_size):
@@ -81,6 +83,7 @@ def load_model_from_config(config, ckpt):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--im_size", default=256, type=int, help="Image size.")
+    parser.add_argument("--eval_size", default=None, type=int, help="Image eval size.")
     parser.add_argument("--num_workers", default=8, type=int, help="Number of workers.")
     parser.add_argument("--batch_size", default=64, type=int, help="Batch size.")
     parser.add_argument("--output_dir", default="/tmp/imagenet_1k", type=str, help="Output directory.")
@@ -90,6 +93,8 @@ def main():
     parser.add_argument('--config', default='models/first_stage_models/kl-f16/config.yaml', type=str,
                         help='Config file')
     args, unknown = parser.parse_known_args()
+    if args.eval_size is None:
+        args.eval_size = args.im_size
 
     # augmentation following DiT and ADM
     transform_train = transforms.Compose([
@@ -135,7 +140,10 @@ def main():
             image = data[0].cuda()
             posterior = vae.encode(image)
             recon = vae.decode(posterior.sample())
-        queue.put((data[0].numpy(), recon.cpu().numpy(), data[1]['filename']))
+            if args.eval_size != recon.shape[-1]:
+                recon = F.interpolate(recon, size=(args.eval_size, args.eval_size), mode='area')
+                image = F.interpolate(image, size=(args.eval_size, args.eval_size), mode='area')
+        queue.put((image.cpu().numpy(), recon.cpu().numpy(), data[1]['filename']))
 
     for _ in range(args.num_workers):
         queue.put(None)
