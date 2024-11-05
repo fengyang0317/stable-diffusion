@@ -29,7 +29,7 @@ TEST_FILES = "testfiles.txt"
 
 
 class FullOpenImagesBase(Dataset):
-    def __init__(self, size=None, crop_size=None, interpolation="bicubic",
+    def __init__(self, size=None, crop_size=None, out_size=None, interpolation="bicubic",
                  data_root="data/imagenet-1k/", random_crop=True,):
         self.split = self.get_split()
         self.size = size
@@ -66,6 +66,9 @@ class FullOpenImagesBase(Dataset):
             self.cropper = albumentations.CenterCrop(height=self.crop_size, width=self.crop_size)
         else:
             self.cropper = albumentations.RandomCrop(height=self.crop_size, width=self.crop_size)
+        self.out_resizer = None
+        if out_size is not None:
+            self.out_resizer = albumentations.Resize(height=out_size, width=out_size, interpolation=cv2.INTER_AREA)
 
     def __len__(self):
         return self._length
@@ -81,6 +84,8 @@ class FullOpenImagesBase(Dataset):
             image = self.image_rescaler(image=image)["image"]
         if self.cropper is not None and self.crop_size is not None:
             image = self.cropper(image=image)["image"]
+        if self.out_resizer is not None:
+            image = self.out_resizer(image=image)["image"]
         processed = {"image": image}
         example["image"] = (processed["image"] / 127.5 - 1.0).astype(np.float32)
         return example
@@ -454,9 +459,10 @@ class SuperresOpenImagesxFaces(SuperresOpenImages):
 
 
 class FullOpenImagesTrain(FullOpenImagesBase):
-    def __init__(self, size=None, crop_size=None, random_crop=True, interpolation="bicubic"):
+    def __init__(self, size=None, crop_size=None, out_size=None, random_crop=True, interpolation="bicubic"):
         super().__init__(size=size,
                          crop_size=crop_size,
+                         out_size=out_size,
                          random_crop=random_crop,
                          interpolation=interpolation
                          )
@@ -466,9 +472,10 @@ class FullOpenImagesTrain(FullOpenImagesBase):
 
 
 class FullOpenImagesValidation(FullOpenImagesBase):
-    def __init__(self, size=None, crop_size=None, random_crop=False, interpolation="bicubic"):
+    def __init__(self, size=None, crop_size=None, out_size=None, random_crop=False, interpolation="bicubic"):
         super().__init__(size=size,
                          crop_size=crop_size,
+                         out_size=out_size,
                          random_crop=random_crop,
                          interpolation=interpolation
                          )
