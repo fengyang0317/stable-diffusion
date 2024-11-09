@@ -15,6 +15,11 @@ from torchvision.transforms import transforms
 
 from ldm.util import instantiate_from_config
 
+_SPLITS = {
+    'train': 'imagenet1k-train-{0000..1023}.tar',
+    'val': 'imagenet1k-validation-{00..63}.tar',
+}
+
 
 def center_crop_arr(pil_image, image_size):
     """
@@ -92,6 +97,7 @@ def main():
     parser.add_argument('--hf_token', default=None, type=str, help='Hugging Face token')
     parser.add_argument('--config', default='models/first_stage_models/kl-f16/config.yaml', type=str,
                         help='Config file')
+    parser.add_argument('--split', default='val', type=str, help='Split to use')
     args, unknown = parser.parse_known_args()
     if args.eval_size is None:
         args.eval_size = args.im_size
@@ -104,7 +110,8 @@ def main():
         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
     ])
 
-    url = 'https://huggingface.co/datasets/timm/imagenet-1k-wds/resolve/main/imagenet1k-validation-{00..63}.tar'
+    split = _SPLITS[args.split]
+    url = f'https://huggingface.co/datasets/timm/imagenet-1k-wds/resolve/main/{split}'
     url = f"pipe:curl -s -L {url} -H 'Authorization:Bearer {args.hf_token}'"
     dataset_train = wds.WebDataset(url)
     dataset_train = dataset_train.decode('pil').to_tuple('jpg', 'json')
