@@ -29,10 +29,11 @@ TEST_FILES = "testfiles.txt"
 
 
 class FullOpenImagesBase(Dataset):
-    def __init__(self, size=None, crop_size=None, out_size=None, interpolation="bicubic",
+    def __init__(self, size=None, crop_size=None, out_size=None, blur_sigma=None, interpolation="bicubic",
                  data_root="data/imagenet-1k/", random_crop=True,):
         self.split = self.get_split()
         self.size = size
+        self.blur_sigma = blur_sigma
         self.crop_size = crop_size if crop_size is not None else size
         if self.size is not None: assert self.crop_size <= self.size
         self.data_files = {"train": FULL_TRAIN_FILES, "validation": VALIDATION_FILES, "test": TEST_FILES}
@@ -86,6 +87,8 @@ class FullOpenImagesBase(Dataset):
             image = self.cropper(image=image)["image"]
         if self.out_resizer is not None:
             image = self.out_resizer(image=image)["image"]
+        if self.blur_sigma:
+            image = cv2.GaussianBlur(image, (0, 0), self.blur_sigma)
         processed = {"image": image}
         example["image"] = (processed["image"] / 127.5 - 1.0).astype(np.float32)
         return example
@@ -459,10 +462,11 @@ class SuperresOpenImagesxFaces(SuperresOpenImages):
 
 
 class FullOpenImagesTrain(FullOpenImagesBase):
-    def __init__(self, size=None, crop_size=None, out_size=None, random_crop=True, interpolation="bicubic"):
+    def __init__(self, size=None, crop_size=None, out_size=None, blur_sigma=None, random_crop=True, interpolation="bicubic"):
         super().__init__(size=size,
                          crop_size=crop_size,
                          out_size=out_size,
+                         blur_sigma=blur_sigma,
                          random_crop=random_crop,
                          interpolation=interpolation
                          )
@@ -472,10 +476,11 @@ class FullOpenImagesTrain(FullOpenImagesBase):
 
 
 class FullOpenImagesValidation(FullOpenImagesBase):
-    def __init__(self, size=None, crop_size=None, out_size=None, random_crop=False, interpolation="bicubic"):
+    def __init__(self, size=None, crop_size=None, out_size=None, blur_sigma=None, random_crop=False, interpolation="bicubic"):
         super().__init__(size=size,
                          crop_size=crop_size,
                          out_size=out_size,
+                         blur_sigma=blur_sigma,
                          random_crop=random_crop,
                          interpolation=interpolation
                          )

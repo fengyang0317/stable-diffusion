@@ -1,9 +1,11 @@
 import argparse
+import functools
 import logging
 import multiprocessing
 import os
 import pathlib
 
+import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -85,6 +87,17 @@ def load_model_from_config(config, ckpt):
     return model
 
 
+def cv2_gaussian_blur(pil_image, blur_sigma):
+    if not blur_sigma:
+        return pil_image
+    img_np = np.array(pil_image)
+    img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+    blurred_img = cv2.GaussianBlur(img_np, (0, 0), blur_sigma)
+    blurred_img = cv2.cvtColor(blurred_img, cv2.COLOR_BGR2RGB)
+    blurred_pil = Image.fromarray(blurred_img)
+    return blurred_pil
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--im_size", default=256, type=int, help="Image size.")
@@ -98,6 +111,7 @@ def main():
     parser.add_argument('--config', default='models/first_stage_models/kl-f16/config.yaml', type=str,
                         help='Config file')
     parser.add_argument('--split', default='val', type=str, help='Split to use')
+    parser.add_argument('--blur_sigma', default=None, type=float, help='Blur sigma')
     args, unknown = parser.parse_known_args()
     if args.eval_size is None:
         args.eval_size = args.im_size
@@ -105,7 +119,7 @@ def main():
     # augmentation following DiT and ADM
     transform_train = transforms.Compose([
         transforms.Lambda(lambda pil_image: center_crop_arr(pil_image, args.im_size)),
-        # transforms.RandomHorizontalFlip(),
+        transforms.Lambda(functools.partial(cv2_gaussian_blur, blur_sigma=args.blur_sigma)),
         transforms.ToTensor(),
         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
     ])
