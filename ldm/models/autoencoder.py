@@ -2,6 +2,7 @@ import torch
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from contextlib import contextmanager
+from omegaconf import OmegaConf
 
 from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
 
@@ -294,6 +295,7 @@ class AutoencoderKL(pl.LightningModule):
                  colorize_nlabels=None,
                  monitor=None,
                  use_ema=False,
+                 kl16_ckpt=None,
                  ):
         super().__init__()
         self.image_key = image_key
@@ -309,6 +311,9 @@ class AutoencoderKL(pl.LightningModule):
             self.register_buffer("colorize", torch.randn(3, colorize_nlabels, 1, 1))
         if monitor is not None:
             self.monitor = monitor
+
+        if kl16_ckpt:
+            self.init_from_kl16(kl16_ckpt)
 
         self.use_ema = use_ema
         if self.use_ema:
@@ -341,8 +346,25 @@ class AutoencoderKL(pl.LightningModule):
                 if k.startswith(ik):
                     print("Deleting key {} from state_dict.".format(k))
                     del sd[k]
-        self.load_state_dict(sd, strict=False)
+        m, u = self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
+
+    def init_from_kl16(self, path):
+        kl16_config = OmegaConf.load('models/first_stage_models/kl-f16/config.yaml')
+        kl16_config['model']['params']['ckpt_path'] = path
+        kl16_model = instantiate_from_config(kl16_config.model)
+        kl16_model.model_ema.copy_to(kl16_model)
+        state_dict = kl16_model.state_dict()
+        new_state_dict = {}
+        with open('kl32_from16.txt') as f:
+            for line in f:
+                name = line.strip()
+                new_state_dict[name] = state_dict[name]
+
+        missing, unexpected = self.load_state_dict(new_state_dict, strict=False)
+        for name, param in self.named_parameters():
+            if name in new_state_dict:
+                param.requires_grad = False
 
     def encode(self, x):
         h = self.encoder(x)
@@ -408,8 +430,8 @@ class AutoencoderKL(pl.LightningModule):
 
     def configure_optimizers(self):
         lr = self.learning_rate
-        opt_ae = torch.optim.Adam(list(self.encoder.parameters())+
-                                  list(self.decoder.parameters())+
+        opt_ae = torch.optim.Adam([param for param in self.encoder.parameters() if param.requires_grad]+
+                                  [param for param in self.decoder.parameters() if param.requires_grad]+
                                   list(self.quant_conv.parameters())+
                                   list(self.post_quant_conv.parameters()),
                                   lr=lr, betas=(0.5, 0.9))
@@ -418,7 +440,7 @@ class AutoencoderKL(pl.LightningModule):
         return [opt_ae, opt_disc], []
 
     def get_last_layer(self):
-        return self.decoder.conv_out.weight
+        return self.decoder.up[5].upsample.conv.weight
 
     @torch.no_grad()
     def log_images(self, batch, only_inputs=False, **kwargs):
