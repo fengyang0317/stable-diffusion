@@ -44,14 +44,14 @@ class Upsample(nn.Module):
         super().__init__()
         self.with_conv = with_conv
         if self.with_conv:
-            self.conv = torch.nn.Conv2d(in_channels,
+            self.conv = torch.nn.Conv2d(in_channels // 4,
                                         in_channels,
                                         kernel_size=3,
                                         stride=1,
                                         padding=1)
 
     def forward(self, x):
-        x = torch.nn.functional.interpolate(x, scale_factor=2.0, mode="nearest")
+        x = rearrange(x, 'b (c p1 p2) h w -> b c (h p1) (w p2)', p1=2, p2=2)
         if self.with_conv:
             x = self.conv(x)
         return x
@@ -65,14 +65,14 @@ class Downsample(nn.Module):
             # no asymmetric padding in torch conv, must do it ourselves
             self.conv = torch.nn.Conv2d(in_channels,
                                         in_channels,
-                                        kernel_size=3,
+                                        kernel_size=2,
                                         stride=2,
                                         padding=0)
 
     def forward(self, x):
         if self.with_conv:
             pad = (0,1,0,1)
-            x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
+            # x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
             x = self.conv(x)
         else:
             x = torch.nn.functional.avg_pool2d(x, kernel_size=2, stride=2)
